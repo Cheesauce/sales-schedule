@@ -1,0 +1,262 @@
+// Prisma schema for the Sales Meeting Scheduler
+// Database: SQLite (file-based, zero-config for internal tool use)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SALES
+}
+
+enum RequestStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  CANCELLED
+}
+
+enum SlotSource {
+  MANUAL      // added by admin directly
+  MEETING     // consumed by a confirmed meeting
+}
+
+// Anyone who signs in (admin or sales) via Google.
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime? // required by @auth/prisma-adapter's schema contract
+  name          String?
+  image         String?
+  role          Role      @default(SALES)
+  createdAt     DateTime  @default(now())
+
+  // OAuth tokens for the account used to write to Google Calendar.
+  // Only populated for the admin who connects the calendar (or a sales
+  // user who connects their own).
+  googleAccessToken   String?
+  googleRefreshToken  String?
+  googleTokenExpiry   DateTime?
+  googleCalendarId    String?   // calendar to write events into, default "primary"
+
+  salesContact  SalesContact?
+  availability  AvailabilityBlock[]
+
+  accounts Account[]
+  sessions Session[]
+}
+
+// NextAuth adapter tables
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// A person on the sales team who can be selected as the meeting contact.
+// Distinct from User so admin can manage the roster even before someone
+// has logged in with Google.
+model SalesContact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  title     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  userId String?  @unique
+  user   User?    @relation(fields: [userId], references: [id])
+
+  meetings          MeetingRequest[]
+  availabilityBlock AvailabilityBlock[]
+}
+
+// Admin-managed availability / blackout windows for the sales department.
+// isAvailable=false blocks the slot (e.g. rep on leave, holiday).
+// isAvailable=true opens a custom extra window (still constrained to
+// business rules unless overridden by admin explicitly).
+model AvailabilityBlock {
+  id            String   @id @default(cuid())
+  date          DateTime // calendar date (time component ignored)
+  startTime     String   // "HH:mm" 24h
+  endTime       String   // "HH:mm" 24h
+  isAvailable   Boolean  @default(false) // false = blackout, true = open window
+  note          String?
+  createdAt     DateTime @default(now())
+
+  createdById   String
+  createdBy     User     @relation(fields: [createdById], references: [id])
+
+  salesContactId String?
+  salesContact   SalesContact? @relation(fields: [salesContactId], references: [id])
+
+  @@index([date])
+}
+
+// A meeting request submitted by a supplier/client (public form, no login).
+// Always tied to a SupplierSubmission — the form is a required prerequisite.
+model MeetingRequest {
+  id               String        @id @default(cuid())
+  topic            String
+  requesterName    String
+  requesterCompany String?
+  requesterEmail   String
+  requesterPhone   String?
+
+  date             DateTime      // calendar date (time component ignored)
+  startTime        String        // "HH:mm" 24h
+  endTime          String        // "HH:mm" 24h
+  location         String        @default("The Glaston Tower, Pasig City @17th Floor")
+
+  status           RequestStatus @default(PENDING)
+
+  salesContactId   String
+  salesContact     SalesContact  @relation(fields: [salesContactId], references: [id])
+
+  supplierSubmissionId String?
+  supplierSubmission   SupplierSubmission? @relation(fields: [supplierSubmissionId], references: [id])
+
+  googleEventId    String?
+  confirmedAt      DateTime?
+  rejectedReason   String?
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([date])
+  @@index([status])
+}
+
+// The "Supplier Information Form" (see company PDF) — required before a
+// supplier/client can request a meeting. Public, no login: identified by
+// a private `editToken` URL the supplier saves themselves to come back
+// and edit later (no email delivery is wired up).
+model SupplierSubmission {
+  id        String @id @default(cuid())
+  editToken String @unique @default(cuid())
+
+  // I. Company Information
+  companyName            String
+  registeredAddress      String
+  tin                    String?
+  businessType           String?
+  businessRegistrationNo String?
+  companyWebsite         String?
+  yearEstablished        String?
+  branches                String? // free text, one branch per line
+
+  // II. Contact Details
+  contactPerson      String
+  contactDesignation String?
+  contactEmail       String
+  contactMobile      String?
+
+  // III. Owners / Officers (C-Level) — JSON: [{ name, designation }]
+  ownersOfficersJson String @default("[]")
+
+  // IV. Products and Services — JSON: [{ product, brand }]
+  productsServicesJson String @default("[]")
+
+  // V. Financial Information
+  finContactPerson     String?
+  finDesignation       String?
+  finContactNumber     String?
+  finEmail             String?
+  primaryBankName      String?
+  primaryAccountName   String?
+  primaryAccountNo     String?
+  primaryAccountType   String?
+  secondaryBankName    String?
+  secondaryAccountName String?
+  secondaryAccountNo   String?
+  secondaryAccountType String?
+  otherBankName        String?
+  otherAccountName     String?
+  otherAccountNo       String?
+  otherAccountType     String?
+
+  // VI. Declarations — all three must be true to submit
+  declTrueAndAccurate Boolean @default(false)
+  declAuthorizeVerify Boolean @default(false)
+  declGoodFaith       Boolean @default(false)
+
+  // VII. Compliance and Certifications — JSON: string[]
+  complianceCertsJson String @default("[]")
+
+  // VIII. Attachment of the Requirements — requestor uploads files here,
+  // the app creates a Google Drive folder (in the connected admin's
+  // Drive), uploads them there, and shares the folder with the
+  // requestor's contact/rep email automatically. driveFolderId is
+  // internal (used to add more files to the same folder on edit) — the
+  // link shown to users is attachmentsDriveLink. requirementTypesJson
+  // (JSON string[]) records which document types were provided — see
+  // lib/supplierRequirements.ts for the valid keys.
+  attachmentsDriveLink String  @default("")
+  driveFolderId        String?
+  requirementTypesJson String @default("[]")
+
+  // IX. Authorized Representative
+  repName        String
+  repDepartment  String?
+  repDesignation String?
+  repEmail       String?
+
+  // X. Declaration and Authorization Statement
+  finalConsent         Boolean   @default(false)
+  signatureName        String // "Signature Over Printed Name" (typed)
+  signatureDesignation String?
+  signatureDate        DateTime?
+  // Uploaded signature image (any image type), stored as a base64 data
+  // URI — small enough to keep inline rather than round-tripping through
+  // Drive, and needed directly embeddable in the generated PDF.
+  signatureImageDataUrl String?
+  // Free placement of the signature image over the Section X block, as
+  // fractions (0-1) of that block's own box — left/top/width/height. Lets
+  // the requestor drag/resize it anywhere, including on top of the text,
+  // in both the web form and the generated PDF.
+  signatureImageX      Float?
+  signatureImageY      Float?
+  signatureImageWidth  Float?
+  signatureImageHeight Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  meetingRequests MeetingRequest[]
+}
