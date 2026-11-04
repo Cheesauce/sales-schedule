@@ -294,12 +294,17 @@ function DeclarationRow({
 }
 
 interface SupplierInformationFormProps {
-  mode: "create" | "edit";
+  mode: "create" | "edit" | "admin-create"; // admin-create: staff entering a supplier who filled the form before
   token?: string;
   initial?: SupplierFormData;
 }
 
 export function SupplierInformationForm({ mode, token, initial }: SupplierInformationFormProps) {
+  // Admin importing a pre-existing supplier: consent/signature/uploads aren't
+  // required (nothing is fabricated on their behalf) and the Drive folder is
+  // an existing link instead of files to upload.
+  const isImport = mode === "admin-create";
+  const [existingDriveLink, setExistingDriveLink] = useState("");
   const router = useRouter();
   const [data, setData] = useState<SupplierFormData>(initial ?? EMPTY);
   // Types already uploaded server-side (edit mode only) — shown as fixed,
@@ -460,14 +465,14 @@ export function SupplierInformationForm({ mode, token, initial }: SupplierInform
     contactEmail: !data.contactEmail.trim(),
     ownersOfficers: !data.ownersOfficers.some((o) => o.name.trim()),
     productsServices: !data.productsServices.some((p) => p.product.trim()),
-    declTrueAndAccurate: !data.declTrueAndAccurate,
-    declAuthorizeVerify: !data.declAuthorizeVerify,
-    declGoodFaith: !data.declGoodFaith,
-    requirementTypes: data.requirementTypes.length === 0,
-    requirementFiles: pendingFileTypes.length > 0,
+    declTrueAndAccurate: !isImport && (!data.declTrueAndAccurate),
+    declAuthorizeVerify: !isImport && (!data.declAuthorizeVerify),
+    declGoodFaith: !isImport && (!data.declGoodFaith),
+    requirementTypes: !isImport && (data.requirementTypes.length === 0),
+    requirementFiles: !isImport && (pendingFileTypes.length > 0),
     repName: !data.repName.trim(),
-    finalConsent: !data.finalConsent,
-    signatureName: !data.signatureName.trim(),
+    finalConsent: !isImport && (!data.finalConsent),
+    signatureName: !isImport && (!data.signatureName.trim()),
   };
   const hasMissing = Object.values(missing).some(Boolean);
   const invalid = (key: keyof typeof missing) => attemptedSubmit && missing[key];
@@ -488,6 +493,32 @@ export function SupplierInformationForm({ mode, token, initial }: SupplierInform
     const complianceCerts = data.complianceCerts.filter((c) => c.trim());
 
     const payload = { ...data, ownersOfficers, productsServices, complianceCerts, removeSignatureImage };
+
+    if (isImport) {
+      setSubmitting(true);
+      try {
+        const res = await fetch("/api/admin/supplier-submissions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...payload, existingDriveLink }),
+        });
+        const resData = await res.json();
+        if (!res.ok) {
+          setError(
+            typeof resData.error === "string"
+              ? resData.error
+              : "Please check the form for errors (e.g. the Drive link must be a drive.google.com link)."
+          );
+        } else {
+          setSuccessState({ id: resData.id, editToken: resData.editToken, driveLink: resData.attachmentsDriveLink });
+        }
+      } catch {
+        setError("Network error — please try again.");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
 
     const fd = new FormData();
     fd.set("data", JSON.stringify(payload));
@@ -559,10 +590,10 @@ export function SupplierInformationForm({ mode, token, initial }: SupplierInform
         <br />
         <div className="mt-4 flex flex-wrap gap-2">
           <button
-            onClick={() => router.push(`/?submissionId=${successState.id}`)}
+            onClick={() => router.push(isImport ? `/admin/suppliers/${successState.id}` : `/?submissionId=${successState.id}`)}
             className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
           >
-            Continue to Request a Meeting
+            {isImport ? "Open supplier record" : "Continue to Request a Meeting"}
           </button>
           <a
             href={`/api/supplier-submissions/${successState.editToken}/pdf`}
@@ -856,6 +887,21 @@ export function SupplierInformationForm({ mode, token, initial }: SupplierInform
 
         <SectionBar>VIII. Attachment of the Requirements *</SectionBar>
         <SectionTable invalid={invalid("requirementTypes") || invalid("requirementFiles")}>
+          {isImport && (
+            <div className="space-y-1 border-b border-slate-400 px-2 py-2">
+              <label className="block text-xs font-bold text-slate-800">Existing Google Drive folder link</label>
+              <input
+                value={existingDriveLink}
+                onChange={(e) => setExistingDriveLink(e.target.value)}
+                placeholder="https://drive.google.com/drive/folders/..."
+                className="w-full border border-slate-400 px-2 py-1.5 text-xs text-slate-900 focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500">
+                Optional. Linked as-is — the app can&apos;t upload into or share a folder it didn&apos;t create. Tick
+                below which documents are already in that folder.
+              </p>
+            </div>
+          )}
           <div className="px-2 py-2 text-[11px] text-slate-600">
             Check off and upload at least one of the following. We&apos;ll create a Google Drive folder with your
             files and share it with your contact email automatically.
@@ -883,7 +929,7 @@ export function SupplierInformationForm({ mode, token, initial }: SupplierInform
             {SUPPLIER_REQUIREMENT_TYPES.map((t) => {
               const covered = alreadyCoveredTypes.has(t.key);
               const checked = covered || data.requirementTypes.includes(t.key);
-              const filePending = !covered && checked && !newFiles[t.key];
+              const filePending = !isImport && !covered && checked && !newFiles[t.key];
               return (
                 <div key={t.key} className="flex flex-col gap-1.5 py-1.5 sm:flex-row sm:items-center sm:gap-2 sm:py-1">
                   <label className="flex items-center gap-2">
@@ -898,7 +944,7 @@ export function SupplierInformationForm({ mode, token, initial }: SupplierInform
                       {covered ? " (already provided)" : ""}
                     </span>
                   </label>
-                  {checked && !covered && (
+                  {checked && !covered && !isImport && (
                     <input
                       type="file"
                       accept="application/pdf,image/png,image/jpeg,image/webp,.doc,.docx,.xls,.xlsx"
@@ -924,7 +970,7 @@ export function SupplierInformationForm({ mode, token, initial }: SupplierInform
 
         <SectionBar>X. Declaration and Authorization Statement</SectionBar>
         <SectionTable invalid={invalid("finalConsent") || invalid("signatureName")}>
-          <div className="flex items-center justify-between gap-3 border-b border-slate-400 bg-slate-50 px-3 py-2">
+          <div className={`${isImport ? "hidden" : "flex"} items-center justify-between gap-3 border-b border-slate-400 bg-slate-50 px-3 py-2`}>
             <p className="text-[10px] text-slate-600">
               {hasSignatureImage
                 ? "Drag the signature image anywhere below, or drag its bottom-right corner to resize."
@@ -1070,7 +1116,7 @@ export function SupplierInformationForm({ mode, token, initial }: SupplierInform
           disabled={submitting}
           className="w-full rounded-md bg-slate-900 px-4 py-2.5 font-sans text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
         >
-          {submitting ? "Submitting..." : mode === "create" ? "Submit Supplier Information Form" : "Save Changes"}
+          {submitting ? "Submitting..." : mode === "edit" ? "Save Changes" : isImport ? "Save supplier record" : "Submit Supplier Information Form"}
         </button>
       </form>
     </div>

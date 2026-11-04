@@ -99,12 +99,33 @@ export const supplierSubmissionSchema = z.object({
 
 export type SupplierSubmissionInput = z.infer<typeof supplierSubmissionSchema>;
 
+// Admin-side import of a supplier who filled out the form before this
+// system existed (paper/PDF) and already has a Drive folder. Consent and
+// signature can't be fabricated on the supplier's behalf, so those are
+// recorded as-is (default: not ticked) instead of being required, and the
+// folder is an existing external link rather than files to upload.
+export const adminImportSchema = supplierSubmissionSchema.extend({
+  declTrueAndAccurate: z.boolean().default(false),
+  declAuthorizeVerify: z.boolean().default(false),
+  declGoodFaith: z.boolean().default(false),
+  finalConsent: z.boolean().default(false),
+  signatureName: z.string().default(""),
+  requirementTypes: z.array(z.string().refine(isValidRequirementType)).default([]),
+  existingDriveLink: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || /^https:\/\/drive\.google\.com\//.test(v), "Must be a drive.google.com link.")
+    .default(""),
+});
+
+export type AdminImportInput = z.infer<typeof adminImportSchema>;
+
 /**
  * Fields derived from the JSON payload alone — does NOT include
  * attachmentsDriveLink/driveFolderId, which the route sets after the
  * Drive API call completes.
  */
-export function toPrismaData(input: SupplierSubmissionInput) {
+export function toPrismaData(input: SupplierSubmissionInput | AdminImportInput) {
   return {
     companyName: input.companyName,
     registeredAddress: input.registeredAddress,
@@ -186,7 +207,11 @@ export async function findSubmissionByTokenOrDriveLink(input: string) {
 
   const folderId = extractDriveFolderId(trimmed);
   if (!folderId) return null;
-  return prisma.supplierSubmission.findFirst({ where: { driveFolderId: folderId } });
+  return prisma.supplierSubmission.findFirst({
+    // driveFolderId = folders this app created; attachmentsDriveLink =
+    // also covers existing folders linked in by an admin.
+    where: { OR: [{ driveFolderId: folderId }, { attachmentsDriveLink: { contains: folderId } }] },
+  });
 }
 
 /** Maps a DB row (JSON-string fields) back into the form's editable shape. */

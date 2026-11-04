@@ -26,7 +26,15 @@ export default async function SuppliersPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
-      <h1 className="text-2xl font-semibold text-slate-900">Supplier Information Forms</h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h1 className="text-2xl font-semibold text-slate-900">Supplier Information Forms</h1>
+        <Link
+          href="/admin/suppliers/new"
+          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+        >
+          + Add existing supplier
+        </Link>
+      </div>
       <p className="mt-1 text-sm text-slate-600">
         Every supplier/client who submitted the Supplier Information Form before requesting a meeting.
       </p>

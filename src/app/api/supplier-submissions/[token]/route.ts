@@ -111,6 +111,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ to
   let attachmentsDriveLink = existing.attachmentsDriveLink;
   let driveFolderId = existing.driveFolderId;
 
+  // An admin-linked existing folder isn't one this app created, so it can't
+  // upload into it — and creating a fresh folder would silently replace the
+  // link they already have. Ask them to send extra files by email instead.
+  if (!driveFolderId && attachmentsDriveLink && newFiles.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Your documents are in an existing Drive folder that can't be added to from this form. Please email any new files to sales@revlv.com.",
+      },
+      { status: 400 }
+    );
+  }
+
   try {
     if (driveFolderId) {
       await addFilesToSupplierDriveFolder(driveFolderId, newFiles);
