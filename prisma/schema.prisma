@@ -1,12 +1,12 @@
 // Prisma schema for the Sales Meeting Scheduler
-// Database: SQLite (file-based, zero-config for internal tool use)
+// Database: PostgreSQL (Neon) — set DATABASE_URL, then `npx prisma db push`
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
