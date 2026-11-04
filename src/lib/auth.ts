@@ -22,8 +22,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           // access so we get a refresh token we can use later
           scope:
             "openid email profile https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file",
+          // "offline" asks Google for a refresh token the first time someone
+          // grants access. We deliberately don't force prompt: "consent" —
+          // that re-showed the full permissions screen on every login. The
+          // token is saved on first consent (see signIn/linkAccount below);
+          // if it's ever revoked, Google asks for consent again by itself.
           access_type: "offline",
-          prompt: "consent",
         },
       },
     }),
