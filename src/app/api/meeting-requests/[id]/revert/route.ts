@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireStaff } from "@/lib/requireAdmin";
 import { deleteMeetingEvent } from "@/lib/googleCalendar";
 
 // Admin only: revert a CONFIRMED or REJECTED request back to PENDING.
@@ -8,7 +8,7 @@ import { deleteMeetingEvent } from "@/lib/googleCalendar";
 // PENDING request has no business owning a live calendar event, and it
 // may end up re-confirmed to a different slot or rejected outright.
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { error } = await requireAdmin();
+  const { error } = await requireStaff();
   if (error) return error;
 
   const { id } = await params;

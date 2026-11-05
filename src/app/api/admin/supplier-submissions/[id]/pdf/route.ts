@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireStaff } from "@/lib/requireAdmin";
 import { renderSupplierPdfBuffer, supplierPdfFileName } from "@/lib/pdf/renderSupplierPdf";
 
 // Admin only: render a submission as a PDF matching the printed Supplier
 // Information Form's layout.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { error } = await requireAdmin();
+  const { error } = await requireStaff();
   if (error) return error;
 
   const { id } = await params;

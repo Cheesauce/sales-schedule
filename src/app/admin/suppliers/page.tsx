@@ -8,7 +8,7 @@ export default async function SuppliersPage() {
   const session = await auth();
   const role = (session?.user as { role?: string } | undefined)?.role;
   if (!session?.user) redirect("/login");
-  if (role !== "ADMIN") redirect("/");
+  if (role !== "ADMIN" && role !== "SALES") redirect("/");
 
   const submissions = await prisma.supplierSubmission.findMany({
     orderBy: { createdAt: "desc" },
@@ -28,12 +28,12 @@ export default async function SuppliersPage() {
     <div className="mx-auto max-w-4xl px-4 py-10">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h1 className="text-2xl font-semibold text-slate-900">Supplier Information Forms</h1>
-        <Link
+        {role === "ADMIN" && <Link
           href="/admin/suppliers/new"
           className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
         >
           + Add existing supplier
-        </Link>
+        </Link>}
       </div>
       <p className="mt-1 text-sm text-slate-600">
         Every supplier/client who submitted the Supplier Information Form before requesting a meeting.
@@ -62,7 +62,7 @@ export default async function SuppliersPage() {
                     <p>{s._count.meetingRequests} meeting request{s._count.meetingRequests === 1 ? "" : "s"}</p>
                     <p>Submitted {new Date(s.createdAt).toLocaleDateString()}</p>
                   </div>
-                  <DeleteSupplierSubmissionButton id={s.id} companyName={s.companyName} />
+                  {role === "ADMIN" && <DeleteSupplierSubmissionButton id={s.id} companyName={s.companyName} />}
                 </div>
               </div>
             </Link>

@@ -3,10 +3,7 @@ import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 
-const adminEmails = (process.env.ADMIN_EMAILS ?? "")
-  .split(",")
-  .map((e) => e.trim().toLowerCase())
-  .filter(Boolean);
+import { isEnvAdmin } from "@/lib/roles";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -35,12 +32,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ user, account }) {
       if (!user.email) return false;
-      const role = adminEmails.includes(user.email.toLowerCase()) ? "ADMIN" : "SALES";
       await prisma.user
         .update({
           where: { email: user.email },
           data: {
-            role,
+            // Only ever promote here (ADMIN_EMAILS). Never reset a role the
+            // admin set on the Users page back to SALES on every login.
+            ...(isEnvAdmin(user.email) ? { role: "ADMIN" as const } : {}),
             // Google only returns a refresh_token on the first consent;
             // keep it if a fresh one isn't sent this time.
             ...(account?.access_token ? { googleAccessToken: account.access_token } : {}),
@@ -68,8 +66,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   events: {
     async createUser({ user }) {
       if (!user.email) return;
-      const role = adminEmails.includes(user.email.toLowerCase()) ? "ADMIN" : "SALES";
-      await prisma.user.update({ where: { id: user.id }, data: { role } });
+      await prisma.user.update({ where: { id: user.id }, data: { role: isEnvAdmin(user.email) ? "ADMIN" : "SALES" } });
     },
     async linkAccount({ user, account }) {
       // Persist Google tokens on the User row so we can call the Calendar

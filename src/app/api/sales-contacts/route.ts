@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireAdmin, requireStaff } from "@/lib/requireAdmin";
 
 // Public: list active sales contacts (needed by the public request form).
 // Admin-only: pass ?all=true to also see removed (inactive) contacts, so
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const wantsAll = new URL(req.url).searchParams.get("all") === "true";
 
   if (wantsAll) {
-    const { error } = await requireAdmin();
+    const { error } = await requireStaff();
     if (error) return error;
     const contacts = await prisma.salesContact.findMany({
       orderBy: [{ active: "desc" }, { name: "asc" }],

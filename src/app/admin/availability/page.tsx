@@ -6,7 +6,7 @@ export default async function AvailabilityPage() {
   const session = await auth();
   const role = (session?.user as { role?: string } | undefined)?.role;
   if (!session?.user) redirect("/login");
-  if (role !== "ADMIN") redirect("/");
+  if (role !== "ADMIN" && role !== "SALES") redirect("/");
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">

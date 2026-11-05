@@ -28,7 +28,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
   const session = await auth();
   const role = (session?.user as { role?: string } | undefined)?.role;
   if (!session?.user) redirect("/login");
-  if (role !== "ADMIN") redirect("/");
+  if (role !== "ADMIN" && role !== "SALES") redirect("/");
 
   const { id } = await params;
   const s = await prisma.supplierSubmission.findUnique({
@@ -56,7 +56,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
           >
             Download PDF
           </a>
-          <DeleteSupplierSubmissionButton id={s.id} companyName={s.companyName} redirectTo="/admin/suppliers" />
+          {role === "ADMIN" && <DeleteSupplierSubmissionButton id={s.id} companyName={s.companyName} redirectTo="/admin/suppliers" />}
         </div>
       </div>
 

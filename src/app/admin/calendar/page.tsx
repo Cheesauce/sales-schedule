@@ -6,7 +6,7 @@ export default async function AdminCalendarPage() {
   const session = await auth();
   const role = (session?.user as { role?: string } | undefined)?.role;
   if (!session?.user) redirect("/login");
-  if (role !== "ADMIN") redirect("/");
+  if (role !== "ADMIN" && role !== "SALES") redirect("/");
 
   // Set once the real Google Calendar's id is known — see the "Google
   // Calendar" tab for where to find it. Never exposed to the client

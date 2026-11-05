@@ -32,25 +32,32 @@ export function NavBar() {
               Request a Meeting
             </Link>
           )}
-          {role === "ADMIN" && (
+          {(role === "ADMIN" || role === "SALES") && (
             <>
               <span className="hidden h-4 w-px bg-stone-200 sm:inline-block" aria-hidden />
               <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                 <Link href="/admin" className="text-stone-500 transition-colors hover:text-[#191410]">
-                  Admin
+                  {role === "ADMIN" ? "Admin" : "Requests"}
                 </Link>
                 <Link href="/admin/calendar" className="text-stone-500 transition-colors hover:text-[#191410]">
                   Calendar
                 </Link>
-                <Link href="/admin/contacts" className="text-stone-500 transition-colors hover:text-[#191410]">
-                  Sales Contacts
-                </Link>
+                {role === "ADMIN" && (
+                  <Link href="/admin/contacts" className="text-stone-500 transition-colors hover:text-[#191410]">
+                    Sales Contacts
+                  </Link>
+                )}
                 <Link href="/admin/availability" className="text-stone-500 transition-colors hover:text-[#191410]">
                   Availability
                 </Link>
                 <Link href="/admin/suppliers" className="text-stone-500 transition-colors hover:text-[#191410]">
                   Suppliers
                 </Link>
+                {role === "ADMIN" && (
+                  <Link href="/admin/users" className="text-stone-500 transition-colors hover:text-[#191410]">
+                    Users
+                  </Link>
+                )}
               </div>
               <span className="hidden h-4 w-px bg-stone-200 sm:inline-block" aria-hidden />
             </>

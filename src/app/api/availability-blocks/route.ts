@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireStaff } from "@/lib/requireAdmin";
 import { parseDateOnly } from "@/lib/scheduling";
 
 const createSchema = z.object({
@@ -16,7 +16,7 @@ const createSchema = z.object({
 // Admin only: list all availability blocks (blackouts / custom open
 // windows) for the sales department.
 export async function GET() {
-  const { error } = await requireAdmin();
+  const { error } = await requireStaff();
   if (error) return error;
 
   const blocks = await prisma.availabilityBlock.findMany({
@@ -28,7 +28,7 @@ export async function GET() {
 
 // Admin only: manually add a custom availability block for the sales dept.
 export async function POST(req: NextRequest) {
-  const { session, error } = await requireAdmin();
+  const { session, error } = await requireStaff();
   if (error) return error;
 
   const body = await req.json();

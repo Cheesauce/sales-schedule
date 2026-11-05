@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { ConfirmMeetingModal } from "@/components/ConfirmMeetingModal";
 
@@ -24,6 +25,8 @@ interface MeetingRequest {
 const TABS = ["PENDING", "CONFIRMED", "REJECTED"] as const;
 
 export function AdminDashboard() {
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "ADMIN";
   const [tab, setTab] = useState<(typeof TABS)[number]>("PENDING");
   const [requests, setRequests] = useState<MeetingRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -203,13 +206,13 @@ export function AdminDashboard() {
                       {busyId === r.id ? "Working..." : "Revert to Pending"}
                     </button>
                   )}
-                  <button
+                  {isAdmin && <button
                     onClick={() => deleteRequest(r.id, r.status)}
                     disabled={busyId === r.id}
                     className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-40"
                   >
                     Delete
-                  </button>
+                  </button>}
                 </div>
               </div>
             </div>

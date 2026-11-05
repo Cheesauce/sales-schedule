@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireStaff } from "@/lib/requireAdmin";
 import { checkAvailability } from "@/lib/availability";
 import { timeToMinutes, formatDateOnly } from "@/lib/scheduling";
 import { createMeetingEvent } from "@/lib/googleCalendar";
@@ -16,7 +16,7 @@ const bodySchema = z.object({
 // still free, then creates the event on the sales Google Calendar and
 // invites the chosen sales-side attendee(s) + requester.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { error } = await requireAdmin();
+  const { error } = await requireStaff();
   if (error) return error;
 
   const parsedBody = bodySchema.safeParse(await req.json().catch(() => ({})));

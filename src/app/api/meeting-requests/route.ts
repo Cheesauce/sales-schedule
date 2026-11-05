@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { checkAvailability } from "@/lib/availability";
 import { DEFAULT_LOCATION, parseDateOnly } from "@/lib/scheduling";
-import { requireAdmin } from "@/lib/requireAdmin";
+import { requireStaff } from "@/lib/requireAdmin";
 
 const createSchema = z.object({
   topic: z.string().min(1, "Please describe what the meeting is about."),
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
 
 // Admin only: list meeting requests, optionally filtered by status.
 export async function GET(req: NextRequest) {
-  const { error } = await requireAdmin();
+  const { error } = await requireStaff();
   if (error) return error;
 
   const { searchParams } = new URL(req.url);
